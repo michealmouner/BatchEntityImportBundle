@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace JG\BatchEntityImportBundle\Model\Matrix;
 
 use const ARRAY_FILTER_USE_KEY;
-use JG\BatchEntityImportBundle\Service\PropertyExistenceChecker;
+use JG\BatchEntityImportBundle\Utils\ColumnNameHelper;
+use Knp\DoctrineBehaviors\Contract\Entity\TranslatableInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class Matrix
@@ -57,10 +58,18 @@ class Matrix
     public function getHeaderInfo(string $className): array
     {
         $info = [];
-        $checker = new PropertyExistenceChecker(new $className());
-
         foreach ($this->header as $name) {
-            $info[$name] = $checker->propertyExists($name);
+            $locale = ColumnNameHelper::getLocale($name);
+            if (is_subclass_of($className, TranslatableInterface::class) && $locale) {
+                $nameWithoutTransSuffix = ColumnNameHelper::removeTranslationSuffix($name);
+                $fieldName = ColumnNameHelper::underscoreToPascalCase($nameWithoutTransSuffix);
+
+                $info[$name] = method_exists($className, sprintf('get%s', $fieldName));
+
+                continue;
+            }
+
+            $info[$name] = property_exists($className, $name);
         }
 
         return $info;
